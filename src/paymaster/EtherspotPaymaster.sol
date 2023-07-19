@@ -3,8 +3,8 @@ pragma solidity ^0.8.12;
 
 /* solhint-disable reason-string */
 
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "lib/openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol";
+import "lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 import "./BasePaymaster.sol";
 import "./Whitelist.sol";
 
