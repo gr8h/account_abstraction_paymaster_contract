@@ -5,9 +5,9 @@ pragma solidity ^0.8.12;
 
 import "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 
-import "./interfaces/IPaymaster.sol";
-import "./interfaces/IEntryPoint.sol";
-import "./helpers/Helpers.sol";
+import "lib/account-abstraction/contracts/interfaces/IPaymaster.sol";
+import "lib/account-abstraction/contracts/interfaces/IEntryPoint.sol";
+import "lib/account-abstraction/contracts/core/Helpers.sol";
 
 /**
  * Helper class for creating a paymaster.
