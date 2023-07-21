@@ -6,7 +6,6 @@ pragma solidity ^0.8.12;
 import "lib/openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol";
 import "lib/openzeppelin-contracts/contracts/security/ReentrancyGuard.sol";
 import "./BasePaymaster.sol";
-import "./Whitelist.sol";
 
 /**
  * A sample paymaster that uses external service to decide whether to pay for the UserOp.
@@ -17,7 +16,7 @@ import "./Whitelist.sol";
  * - the paymaster signs to agree to PAY for GAS.
  * - the wallet signs to prove identity and account ownership.
  */
-contract EtherspotPaymaster is BasePaymaster, Whitelist, ReentrancyGuard {
+contract EtherspotPaymaster is BasePaymaster, ReentrancyGuard {
     using ECDSA for bytes32;
     using UserOperationLib for UserOperation;
 
@@ -26,7 +25,10 @@ contract EtherspotPaymaster is BasePaymaster, Whitelist, ReentrancyGuard {
     // calculated cost of the postOp
     uint256 private constant COST_OF_POST = 40000;
 
-    mapping(address => uint256) private sponsorFunds;
+    // mapping(address => uint256) private sponsorFunds;
+
+    address payable private sponsor;
+    uint256 private sponsorFundsMoney;
 
     event SponsorSuccessful(address paymaster, address sender);
     event SponsorUnsuccessful(address paymaster, address sender);
@@ -39,31 +41,30 @@ contract EtherspotPaymaster is BasePaymaster, Whitelist, ReentrancyGuard {
     }
 
     function withdrawFunds(
-        address payable _sponsor,
         uint256 _amount
     ) external nonReentrant {
         require(
-            msg.sender == _sponsor,
-            "EtherspotPaymaster:: can only withdraw own funds"
-        );
-        require(
-            checkSponsorFunds(_sponsor) >= _amount,
+            checkSponsorFunds(sponsor) >= _amount,
             "EtherspotPaymaster:: not enough deposited funds"
         );
-        _debitSponsor(_sponsor, _amount);
+        _debitSponsor(sponsor, _amount);
         entryPoint.withdrawTo(_sponsor, _amount);
     }
 
     function checkSponsorFunds(address _sponsor) public view returns (uint256) {
-        return sponsorFunds[_sponsor];
+        require(
+            msg.sender == _sponsor,
+            "EtherspotPaymaster:: can only withdraw own funds"
+        );
+        return sponsorFundsMoney;
     }
 
-    function _debitSponsor(address _sponsor, uint256 _amount) internal {
-        sponsorFunds[_sponsor] -= _amount;
+    function _debitSponsor(uint256 _amount) internal {
+        sponsorFundsMoney -= _amount;
     }
 
-    function _creditSponsor(address _sponsor, uint256 _amount) internal {
-        sponsorFunds[_sponsor] += _amount;
+    function _creditSponsor(uint256 _amount) internal {
+        sponsorFundsMoney += _amount;
     }
 
     function _pack(
@@ -143,11 +144,6 @@ contract EtherspotPaymaster is BasePaymaster, Whitelist, ReentrancyGuard {
 
         // check for valid paymaster
         address sponsorSig = ECDSA.recover(hash, signature);
-
-        // don't revert on signature failure: return SIG_VALIDATION_FAILED
-        if (!_check(sponsorSig, sig)) {
-            return ("", _packValidationData(true, validUntil, validAfter));
-        }
 
         // check sponsor has enough funds deposited to pay for gas
         require(
