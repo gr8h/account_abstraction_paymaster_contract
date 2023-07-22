@@ -21,50 +21,62 @@ contract EtherspotPaymaster is BasePaymaster, ReentrancyGuard {
     using UserOperationLib for UserOperation;
 
     uint256 private constant VALID_TIMESTAMP_OFFSET = 20;
-    uint256 private constant SIGNATURE_OFFSET = 84;
+    uint256 private constant SPONSOR_ADDRESS_OFFSET = 84;
+    uint256 private constant SIGNATURE_OFFSET = 104;
     // calculated cost of the postOp
     uint256 private constant COST_OF_POST = 40000;
 
-    // mapping(address => uint256) private sponsorFunds;
-
-    address payable private sponsor;
-    uint256 private sponsorFundsMoney;
+    address payable public sponsor;
+    uint256 public sponsorFunds;
 
     event SponsorSuccessful(address paymaster, address sender);
     event SponsorUnsuccessful(address paymaster, address sender);
 
     constructor(IEntryPoint _entryPoint) BasePaymaster(_entryPoint) {}
 
+    function changeSponsor(address payable _sponsor) external onlyOwner {
+        sponsorFunds = 0;
+        sponsor = _sponsor;
+    }
+
     function depositFunds() external payable nonReentrant {
+        require(
+            msg.sender == sponsor,
+            "EtherspotPaymaster:: can only withdraw own funds"
+        );
+        require(msg.value > 0, "EtherspotPaymaster:: amount must be > 0");
+
         entryPoint.depositTo{value: msg.value}(address(this));
         _creditSponsor(msg.sender, msg.value);
     }
 
-    function withdrawFunds(
-        uint256 _amount
-    ) external nonReentrant {
+    function withdrawFunds(uint256 _amount) external nonReentrant {
         require(
-            checkSponsorFunds(sponsor) >= _amount,
+            msg.sender == sponsor,
+            "EtherspotPaymaster:: can only withdraw own funds"
+        );
+        require(
+            sponsorFunds >= _amount,
             "EtherspotPaymaster:: not enough deposited funds"
         );
         _debitSponsor(sponsor, _amount);
-        entryPoint.withdrawTo(_sponsor, _amount);
+        entryPoint.withdrawTo(sponsor, _amount);
     }
 
-    function checkSponsorFunds(address _sponsor) public view returns (uint256) {
+    function _debitSponsor(address _sponsor, uint256 _amount) internal {
         require(
-            msg.sender == _sponsor,
+            _sponsor == sponsor,
             "EtherspotPaymaster:: can only withdraw own funds"
         );
-        return sponsorFundsMoney;
+        sponsorFunds -= _amount;
     }
 
-    function _debitSponsor(uint256 _amount) internal {
-        sponsorFundsMoney -= _amount;
-    }
-
-    function _creditSponsor(uint256 _amount) internal {
-        sponsorFundsMoney += _amount;
+    function _creditSponsor(address _sponsor, uint256 _amount) internal {
+        require(
+            _sponsor == sponsor,
+            "EtherspotPaymaster:: can only withdraw own funds"
+        );
+        sponsorFunds += _amount;
     }
 
     function _pack(
@@ -117,7 +129,8 @@ contract EtherspotPaymaster is BasePaymaster, ReentrancyGuard {
      * the "paymasterAndData" is expected to be the paymaster and a signature over the entire request params
      * paymasterAndData[:20] : address(this)
      * paymasterAndData[20:84] : abi.encode(validUntil, validAfter)
-     * paymasterAndData[84:] : signature
+     * paymasterAndData[84:104] : sponsorAddress
+     * paymasterAndData[104:] : signature
      */
     function _validatePaymasterUserOp(
         UserOperation calldata userOp,
@@ -129,6 +142,7 @@ contract EtherspotPaymaster is BasePaymaster, ReentrancyGuard {
         (
             uint48 validUntil,
             uint48 validAfter,
+            address sponsorAddress,
             bytes calldata signature
         ) = parsePaymasterAndData(userOp.paymasterAndData);
         // ECDSA library supports both 64 and 65-byte long signatures.
@@ -144,10 +158,14 @@ contract EtherspotPaymaster is BasePaymaster, ReentrancyGuard {
 
         // check for valid paymaster
         address sponsorSig = ECDSA.recover(hash, signature);
+        require(
+            sponsorSig == sponsorAddress,
+            "EtherspotPaymaster:: Invalid sponsor address"
+        );
 
         // check sponsor has enough funds deposited to pay for gas
         require(
-            checkSponsorFunds(sponsorSig) >= requiredPreFund,
+            sponsorFunds >= requiredPreFund,
             "EtherspotPaymaster:: Sponsor paymaster funds too low"
         );
 
@@ -169,11 +187,20 @@ contract EtherspotPaymaster is BasePaymaster, ReentrancyGuard {
     )
         public
         pure
-        returns (uint48 validUntil, uint48 validAfter, bytes calldata signature)
+        returns (
+            uint48 validUntil,
+            uint48 validAfter,
+            address sponsorAddress,
+            bytes calldata signature
+        )
     {
         (validUntil, validAfter) = abi.decode(
-            paymasterAndData[VALID_TIMESTAMP_OFFSET:SIGNATURE_OFFSET],
+            paymasterAndData[VALID_TIMESTAMP_OFFSET:SPONSOR_ADDRESS_OFFSET],
             (uint48, uint48)
+        );
+        sponsorAddress = abi.decode(
+            paymasterAndData[SPONSOR_ADDRESS_OFFSET:SIGNATURE_OFFSET],
+            (address)
         );
         signature = paymasterAndData[SIGNATURE_OFFSET:];
     }
