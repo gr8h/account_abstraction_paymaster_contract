@@ -43,7 +43,7 @@ contract EtherspotPaymasterTest is Test {
         assertEq(paymaster.sponsorFunds(), 0);
     }
 
-    function testParse() public {
+    function testParsePaymasterAndData() public {
         emit log_named_address("userAddress", userAddress);
         // Arrange
         uint48 validUntil = 1628909167;
@@ -60,22 +60,23 @@ contract EtherspotPaymasterTest is Test {
         bytes memory paymasterAndData = abi.encodePacked(
             userAddress,
             abi.encode(validUntil, validAfter),
+            sponsorAddress,
             sponsorSignature
         );
-
-        emit log_named_bytes("paymasterAndData", paymasterAndData);
-        // Assert
-        assertEq(sponsorSignature.length, 65);
 
         (
             uint48 validUntilReturned,
             uint48 validAfterReturned,
+            address sponsorAddressReturned,
             bytes memory signatureReturned
         ) = paymaster.parsePaymasterAndData(paymasterAndData);
 
+        // Assert
+        assertEq(sponsorSignature.length, 65);
+
         assertEq(validUntilReturned, validUntil);
         assertEq(validAfterReturned, validAfter);
-        // assertEq(sponsorAddressReturned, address(0));
+        assertEq(sponsorAddressReturned, sponsorAddress);
         assertEq(signatureReturned, sponsorSignature);
     }
 }

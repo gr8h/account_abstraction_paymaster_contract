@@ -21,7 +21,8 @@ contract EtherspotPaymaster is BasePaymaster, ReentrancyGuard {
     using UserOperationLib for UserOperation;
 
     uint256 private constant VALID_TIMESTAMP_OFFSET = 20;
-    uint256 private constant SIGNATURE_OFFSET = 84;
+    uint256 private constant SPONSOR_OFFSET = 84;
+    uint256 private constant SIGNATURE_OFFSET = 104;
     // calculated cost of the postOp
     uint256 private constant COST_OF_POST = 40000;
 
@@ -141,6 +142,7 @@ contract EtherspotPaymaster is BasePaymaster, ReentrancyGuard {
         (
             uint48 validUntil,
             uint48 validAfter,
+            address sponsorAddress,
             bytes calldata signature
         ) = parsePaymasterAndData(userOp.paymasterAndData);
         // ECDSA library supports both 64 and 65-byte long signatures.
@@ -156,10 +158,10 @@ contract EtherspotPaymaster is BasePaymaster, ReentrancyGuard {
 
         // check for valid paymaster
         address sponsorSig = ECDSA.recover(hash, signature);
-        // require(
-        //     sponsorSig == sponsorAddress,
-        //     "EtherspotPaymaster:: Invalid sponsor address"
-        // );
+        require(
+            sponsorSig == sponsorAddress,
+            "EtherspotPaymaster:: Invalid sponsor address"
+        );
 
         // check sponsor has enough funds deposited to pay for gas
         require(
@@ -185,13 +187,33 @@ contract EtherspotPaymaster is BasePaymaster, ReentrancyGuard {
     )
         public
         pure
-        returns (uint48 validUntil, uint48 validAfter, bytes calldata signature)
+        returns (
+            uint48 validUntil,
+            uint48 validAfter,
+            address sponsorAddress,
+            bytes calldata signature
+        )
     {
         (validUntil, validAfter) = abi.decode(
-            paymasterAndData[VALID_TIMESTAMP_OFFSET:SIGNATURE_OFFSET],
+            paymasterAndData[VALID_TIMESTAMP_OFFSET:SPONSOR_OFFSET],
             (uint48, uint48)
         );
+        sponsorAddress = _extractAddress(paymasterAndData, SPONSOR_OFFSET);
         signature = paymasterAndData[SIGNATURE_OFFSET:];
+    }
+
+    function _extractAddress(
+        bytes memory data,
+        uint256 offset
+    ) internal pure returns (address sponsorAddress) {
+        require(
+            data.length >= offset + 20,
+            "EtherspotPaymaster: data length is less than required"
+        );
+
+        assembly {
+            sponsorAddress := mload(add(data, add(offset, 20)))
+        }
     }
 
     function _postOp(
