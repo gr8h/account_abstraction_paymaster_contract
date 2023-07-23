@@ -21,8 +21,7 @@ contract EtherspotPaymaster is BasePaymaster, ReentrancyGuard {
     using UserOperationLib for UserOperation;
 
     uint256 private constant VALID_TIMESTAMP_OFFSET = 20;
-    uint256 private constant SPONSOR_ADDRESS_OFFSET = 84;
-    uint256 private constant SIGNATURE_OFFSET = 104;
+    uint256 private constant SIGNATURE_OFFSET = 84;
     // calculated cost of the postOp
     uint256 private constant COST_OF_POST = 40000;
 
@@ -142,7 +141,6 @@ contract EtherspotPaymaster is BasePaymaster, ReentrancyGuard {
         (
             uint48 validUntil,
             uint48 validAfter,
-            address sponsorAddress,
             bytes calldata signature
         ) = parsePaymasterAndData(userOp.paymasterAndData);
         // ECDSA library supports both 64 and 65-byte long signatures.
@@ -158,10 +156,10 @@ contract EtherspotPaymaster is BasePaymaster, ReentrancyGuard {
 
         // check for valid paymaster
         address sponsorSig = ECDSA.recover(hash, signature);
-        require(
-            sponsorSig == sponsorAddress,
-            "EtherspotPaymaster:: Invalid sponsor address"
-        );
+        // require(
+        //     sponsorSig == sponsorAddress,
+        //     "EtherspotPaymaster:: Invalid sponsor address"
+        // );
 
         // check sponsor has enough funds deposited to pay for gas
         require(
@@ -187,20 +185,11 @@ contract EtherspotPaymaster is BasePaymaster, ReentrancyGuard {
     )
         public
         pure
-        returns (
-            uint48 validUntil,
-            uint48 validAfter,
-            address sponsorAddress,
-            bytes calldata signature
-        )
+        returns (uint48 validUntil, uint48 validAfter, bytes calldata signature)
     {
         (validUntil, validAfter) = abi.decode(
-            paymasterAndData[VALID_TIMESTAMP_OFFSET:SPONSOR_ADDRESS_OFFSET],
+            paymasterAndData[VALID_TIMESTAMP_OFFSET:SIGNATURE_OFFSET],
             (uint48, uint48)
-        );
-        sponsorAddress = abi.decode(
-            paymasterAndData[SPONSOR_ADDRESS_OFFSET:SIGNATURE_OFFSET],
-            (address)
         );
         signature = paymasterAndData[SIGNATURE_OFFSET:];
     }
