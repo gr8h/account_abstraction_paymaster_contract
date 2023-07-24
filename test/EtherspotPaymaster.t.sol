@@ -64,6 +64,10 @@ contract EtherspotPaymasterTest is Test {
             sponsorSignature
         );
 
+        emit log_named_bytes("paymasterAndData", paymasterAndData);
+
+        paymasterAndData = hex"96fbeb2e2e17ea5ca71dddb6180b76567bc8b0e10000000000000000000000000000000000000000000000000000000064beb03b0000000000000000000000000000000000000000000000000000000064beada7ea471b5d1e83acdeb64ff079a207a8c9e2d064c8f630fe9239e3f0679b1ce37fdbef6d1d6bd0e5e397c2ae4c712f35ec67ac086433ccca8375aca7dc5c8b7d99e62feb309db1d4b5a4be5f427400ce6885e911ac1c";
+
         (
             uint48 validUntilReturned,
             uint48 validAfterReturned,
